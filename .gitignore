@@ -2,3 +2,4 @@
 *.nh5
 __pycache__
 *.pyc
+dist
