@@ -4,12 +4,26 @@ import numpy as np
 import h5py
 
 
-def h5_to_nh5(h5_path: str, nh5_path: str) -> str:
+def h5_to_nh5(h5_path: str, nh5_path: str, *, suppress_float64_warnings: bool = False, allow_int64: bool = False):
     """Converts an h5 file to an nh5 file.
+
+    Only a limited subset of h5 files are supported. The h5 file must contain only groups and datasets.
+    The resulting nh5 file will not include any compression or chunking.
+
+    For most visualization purposes, float32 is sufficient. So, if the h5 file contains float64 datasets,
+    a warning will be printed. To suppress this warning, set suppress_float64_warnings to True.
+
+    If the h5 file contains int64 or uint64 datasets, an error will be raised. To allow int64 or uint64
+    datasets, set allow_int64 to True. The rationale is that 64-bit integers are not (easily) supported by
+    JavaScript, so they cannot be (easily) handled on the frontend.
 
     Args:
         h5_path (str): Path to the h5 file.
         nh5_path (str): Path to the nh5 file.
+        suppress_float64_warnings (bool, optional): If True, suppresses warnings about float64
+            datasets being converted to float32. Defaults to False.
+        allow_int64 (bool, optional): If True, allows int64 or uint64 datasets to be converted.
+            Otherwise raises an error if an int64 or uint64 dataset is encountered. Defaults to False.
     """
     with h5py.File(h5_path, "r") as h5_file:
         with open(nh5_path, "wb") as nh5_file:
@@ -22,11 +36,19 @@ def h5_to_nh5(h5_path: str, nh5_path: str) -> str:
             all_datasets_in_h5_file = _get_h5_datasets(h5_file)
             position = 0
             for dataset in all_datasets_in_h5_file:
+                dtype = _dtype_to_str(dataset)
+                if not allow_int64 and dtype in ["int64", "uint64"]:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                if not suppress_float64_warnings and dtype == "float64":
+                    print(
+                        f"Warning: Converting float64 dataset '{dataset.name}' to float32. "
+                        "Consider using float32 to save space."
+                    )
                 header["datasets"].append(
                     {
                         "path": dataset.name,
                         "attrs": json.loads(_attrs_to_json(dataset)),
-                        "dtype": _dtype_to_str(dataset),
+                        "dtype": dtype,
                         "shape": _format_shape(dataset),
                         "position": int(position),
                     }
