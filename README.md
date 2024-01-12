@@ -27,8 +27,7 @@ You can install nh5 using pip
 
 ```bash
 # this section will be updated once the package is available on PyPI
-cd nh5
-pip install .
+pip install nh5
 ```
 
 ## Usage
