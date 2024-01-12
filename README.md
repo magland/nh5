@@ -4,6 +4,8 @@
 
 This package has an *very small* codebase. Feel free to explore!
 
+See the [accompanying JavaScript library](./js/README.md).
+
 ## Motivation behind nh5
 
 The creation of this format was driven by specific challenges encountered with the hdf5 format, particularly in the context of web-based applications. While hdf5 is efficient for packaging large volumes of data, including data arrays, it falls short in terms of efficiency and ease when it comes to reading data from a web browser or from remote files. This inefficiency is primarily due to the scattered nature of metadata within the hdf5 file, necessitating multiple HTTP requests for access.
