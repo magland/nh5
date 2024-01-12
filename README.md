@@ -4,7 +4,7 @@
 
 This package has an *very small* codebase. Feel free to explore!
 
-See the [accompanying JavaScript library](./js/README.md).
+See the [accompanying JavaScript library](https://github.com/magland/nh5/tree/main/js).
 
 ## Motivation behind nh5
 
