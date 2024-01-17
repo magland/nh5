@@ -160,25 +160,70 @@ def _get_dataset_byte_count(dataset: h5py.Dataset) -> int:
     dtype = dataset.dtype
     shape = dataset.shape
     shape_prod = np.prod(shape)
-    if dtype == np.dtype("int8"):
-        return shape_prod
-    elif dtype == np.dtype("uint8"):
-        return shape_prod
-    elif dtype == np.dtype("int16"):
-        return shape_prod * 2
-    elif dtype == np.dtype("uint16"):
-        return shape_prod * 2
-    elif dtype == np.dtype("int32"):
-        return shape_prod * 4
-    elif dtype == np.dtype("uint32"):
-        return shape_prod * 4
-    elif dtype == np.dtype("int64"):
-        return shape_prod * 8
-    elif dtype == np.dtype("uint64"):
-        return shape_prod * 8
-    elif dtype == np.dtype("float32"):
-        return shape_prod * 4
-    elif dtype == np.dtype("float64"):
-        return shape_prod * 8
+    bc = _get_entry_byte_count(dtype)
+    return shape_prod * bc
+
+
+def _get_entry_byte_count(dtype: str):
+    if dtype == "int8":
+        return 1
+    elif dtype == "uint8":
+        return 1
+    elif dtype == "int16":
+        return 2
+    elif dtype == "uint16":
+        return 2
+    elif dtype == "int32":
+        return 4
+    elif dtype == "uint32":
+        return 4
+    elif dtype == "int64":
+        return 8
+    elif dtype == "uint64":
+        return 8
+    elif dtype == "float32":
+        return 4
+    elif dtype == "float64":
+        return 8
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
+
+
+def nh5_to_h5(nh5_path: str, h5_path: str):
+    """Converts an nh5 file to an h5 file.
+
+    Args:
+        nh5_path (str): Path to the nh5 file.
+        h5_path (str): Path to the h5 file.
+    """
+    with open(nh5_path, "rb") as nh5_file:
+        initial_text = nh5_file.read(100).decode("utf-8")
+        parts = initial_text.split("|")
+        if len(parts) < 4:
+            raise ValueError("Invalid nh5 file")
+        if parts[0] != "nh5":
+            raise ValueError("Invalid nh5 file")
+        if parts[1] != "1":
+            raise ValueError("Invalid nh5 file version")
+        header_length = int(parts[2])
+        nh5_file.seek(len('|'.join(parts[:3])) + 1)
+        header_json = nh5_file.read(header_length).decode("utf-8")
+        header = json.loads(header_json)
+        header_offset = len('|'.join(parts[:3])) + 1 + header_length
+        with h5py.File(h5_path, "w") as h5_file:
+            for group in header["groups"]:
+                if not h5_file.get(group["path"]):
+                    h5_group = h5_file.create_group(group["path"])
+                for attr_name, attr_value in group["attrs"].items():
+                    h5_group.attrs[attr_name] = attr_value
+            for dataset in header["datasets"]:
+                num_bytes = _get_entry_byte_count(dataset["dtype"]) * np.prod(dataset["shape"])
+                nh5_file.seek(header_offset + dataset["position"])
+                buf = nh5_file.read(num_bytes)
+                x = np.frombuffer(buf, dtype=dataset["dtype"]).reshape(dataset["shape"])
+                h5_dataset = h5_file.create_dataset(
+                    dataset["path"],
+                    data=x
+                )
+                for attr_name, attr_value in dataset["attrs"].items():
+                    h5_dataset.attrs[attr_name] = attr_value

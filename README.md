@@ -32,6 +32,14 @@ from nh5 import h5_to_nh5
 h5_to_nh5("path_to_your_hdf5_file.h5", "path_for_the_output_nh5_file.nh5")
 ```
 
+To convert an nh5 file to an hdf5 file, use the nh5_to_h5 function:
+
+```python
+from nh5 import nh5_to_h5
+
+nh5_to_h5("path_to_your_nh5_file.nh5", "path_for_the_output_hdf5_file.h5")
+```
+
 ## Limitations
 
 - Limited data types: Does not support all hdf5 data types.
