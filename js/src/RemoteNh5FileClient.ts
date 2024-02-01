@@ -157,9 +157,6 @@ export class RemoteNh5FileClient {
     const filePosition = this.dataPosition + position;
     if (o.slice) throw Error('slice not supported yet');
     if (o.allowBigInt) throw Error('allowBigInt not supported yet');
-    if (o.canceler) {
-      console.warn('canceler not supported yet');
-    }
     const dtypeByteCount = {
       int8: 1,
       uint8: 1,
@@ -172,12 +169,34 @@ export class RemoteNh5FileClient {
     }[dtype];
     if (!dtypeByteCount) throw Error(`Unexpected dtype: ${dtype}`);
     const numBytes = shape.reduce((a, b) => a * b, 1) * dtypeByteCount;
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    let aborted = false;
+    if (o.canceler) {
+      o.canceler.onCancel.push(() => {
+        aborted = true;
+        controller.abort();
+      })
+    }
+
     const response = await fetch(this.url, {
+      signal,
       headers: {
         Range: `bytes=${filePosition}-${filePosition + numBytes - 1}`,
       },
     });
-    const buffer = await response.arrayBuffer();
+    let buffer
+    try {
+      buffer = await response.arrayBuffer();
+    } catch (e) {
+      if (aborted) {
+        console.warn('Fetch aborted for ' + path);
+        return undefined;
+      }
+      throw e;
+    }
     let ret: DatasetDataType;
     if (dtype === 'int8') ret = new Int8Array(buffer);
     else if (dtype === 'uint8') ret = new Uint8Array(buffer);
