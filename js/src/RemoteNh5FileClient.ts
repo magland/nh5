@@ -153,68 +153,66 @@ export class RemoteNh5FileClient {
     }
     this.#fetchCache.setRetrieving(k);
 
-    const dtype = d.dtype;
-    const shape = d.shape;
-    const position = d.position;
-    const filePosition = this.dataPosition + position;
-    if (o.slice) throw Error('slice not supported yet');
-    if (o.allowBigInt) throw Error('allowBigInt not supported yet');
-    const dtypeByteCount = {
-      int8: 1,
-      uint8: 1,
-      int16: 2,
-      uint16: 2,
-      int32: 4,
-      uint32: 4,
-      float32: 4,
-      float64: 8,
-    }[dtype];
-    if (!dtypeByteCount) throw Error(`Unexpected dtype: ${dtype}`);
-    const numBytes = shape.reduce((a, b) => a * b, 1) * dtypeByteCount;
-
-    const controller = new AbortController();
-    const signal = controller.signal;
-
-    let aborted = false;
-    if (o.canceler) {
-      o.canceler.onCancel.push(() => {
-        aborted = true;
-        controller.abort();
-      })
-    }
-
-    const response = await fetch(this.url, {
-      signal,
-      headers: {
-        Range: `bytes=${filePosition}-${filePosition + numBytes - 1}`,
-      },
-    });
-    let buffer
     try {
-      buffer = await response.arrayBuffer();
-    } catch (e) {
-      if (!aborted) {
-        this.#fetchCache.setFailed(k);
-        throw e;
+      const dtype = d.dtype;
+      const shape = d.shape;
+      const position = d.position;
+      const filePosition = this.dataPosition + position;
+      if (o.slice) throw Error('slice not supported yet');
+      if (o.allowBigInt) throw Error('allowBigInt not supported yet');
+      const dtypeByteCount = {
+        int8: 1,
+        uint8: 1,
+        int16: 2,
+        uint16: 2,
+        int32: 4,
+        uint32: 4,
+        float32: 4,
+        float64: 8,
+      }[dtype];
+      if (!dtypeByteCount) throw Error(`Unexpected dtype: ${dtype}`);
+      const numBytes = shape.reduce((a, b) => a * b, 1) * dtypeByteCount;
+
+      const controller = new AbortController();
+      const signal = controller.signal;
+
+      let aborted = false;
+      if (o.canceler) {
+        o.canceler.onCancel.push(() => {
+          aborted = true;
+          controller.abort();
+        })
+      }
+
+      const response = await fetch(this.url, {
+        signal,
+        headers: {
+          Range: `bytes=${filePosition}-${filePosition + numBytes - 1}`,
+        },
+      });
+      const buffer = await response.arrayBuffer();
+      if (aborted) {
+        throw Error(`Aborted: ${path}`)
+      }
+      if (!buffer) {throw Error('Unexpected: no buffer')};
+      let ret: DatasetDataType;
+      if (dtype === 'int8') ret = new Int8Array(buffer);
+      else if (dtype === 'uint8') ret = new Uint8Array(buffer);
+      else if (dtype === 'int16') ret = new Int16Array(buffer);
+      else if (dtype === 'uint16') ret = new Uint16Array(buffer);
+      else if (dtype === 'int32') ret = new Int32Array(buffer);
+      else if (dtype === 'uint32') ret = new Uint32Array(buffer);
+      else if (dtype === 'float32') ret = new Float32Array(buffer);
+      else if (dtype === 'float64') ret = new Float64Array(buffer);
+      else throw Error(`Unexpected dtype: ${dtype}`);
+      this.#fetchCache.set(k, ret);
+      return ret;
+    }
+    finally {
+      if (this.#fetchCache.retrieving(k)) {
+        this.#fetchCache.setAborted(k);
       }
     }
-    if (aborted) {
-      this.#fetchCache.setAborted(k);
-      return undefined;
-    }
-    if (!buffer) throw Error('Unexpected: no buffer');
-    let ret: DatasetDataType;
-    if (dtype === 'int8') ret = new Int8Array(buffer);
-    else if (dtype === 'uint8') ret = new Uint8Array(buffer);
-    else if (dtype === 'int16') ret = new Int16Array(buffer);
-    else if (dtype === 'uint16') ret = new Uint16Array(buffer);
-    else if (dtype === 'int32') ret = new Int32Array(buffer);
-    else if (dtype === 'uint32') ret = new Uint32Array(buffer);
-    else if (dtype === 'float32') ret = new Float32Array(buffer);
-    else if (dtype === 'float64') ret = new Float64Array(buffer);
-    else throw Error(`Unexpected dtype: ${dtype}`);
-    this.#fetchCache.set(k, ret);
-    return ret;
   }
   static async create(url: string) {
     const { header, dataPosition } = await getRemoteNh5Header(url);
@@ -293,19 +291,23 @@ class FetchCache {
     if (key in this.#retrieving) {
       delete this.#retrieving[key];
     }
-    for (const w of this.#waiters[key]) {
-      w();
+    if (key in this.#waiters) {
+      for (const w of this.#waiters[key]) {
+        w();
+      }
+      delete this.#waiters[key];
     }
-    delete this.#waiters[key];
   }
   setFailed(key: string) {
     if (key in this.#retrieving) {
       delete this.#retrieving[key];
     }
-    for (const w of this.#waiters[key]) {
-      w();
+    if (key in this.#waiters) {
+      for (const w of this.#waiters[key]) {
+        w();
+      }
+      delete this.#waiters[key];
     }
-    delete this.#waiters[key];
   }
 
   async wait(key: string) {
