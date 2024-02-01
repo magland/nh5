@@ -1,0 +1,21 @@
+{
+    "name": "nh5",
+    "version": "0.1.5",
+    "license": "Apache-2.0",
+    "description": "Client for remote nh5 files",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": ["nh5"],
+    "author": "Jeremy Magland",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/magland/nh5"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.3"
+    }
+}
