@@ -147,7 +147,9 @@ export class RemoteNh5FileClient {
     }
     if (this.#fetchCache.retrieving(k)) {
       await this.#fetchCache.wait(k);
-      return this.#fetchCache.get(k);
+      const ret = this.#fetchCache.get(k);
+      if (ret) return ret;
+      throw Error('No data after waiting. Probably the other fetch was aborted or failed.')
     }
     this.#fetchCache.setRetrieving(k);
 
@@ -191,12 +193,16 @@ export class RemoteNh5FileClient {
     try {
       buffer = await response.arrayBuffer();
     } catch (e) {
-      if (aborted) {
-        console.warn('Fetch aborted for ' + path);
-        return undefined;
+      if (!aborted) {
+        this.#fetchCache.setFailed(k);
+        throw e;
       }
-      throw e;
     }
+    if (aborted) {
+      this.#fetchCache.setAborted(k);
+      return undefined;
+    }
+    if (!buffer) throw Error('Unexpected: no buffer');
     let ret: DatasetDataType;
     if (dtype === 'int8') ret = new Int8Array(buffer);
     else if (dtype === 'uint8') ret = new Uint8Array(buffer);
@@ -283,6 +289,21 @@ class FetchCache {
   setRetrieving(key: string) {
     this.#retrieving[key] = true;
   }
+  setAborted(key: string) {
+    delete this.#retrieving[key];
+    for (const w of this.#waiters[key]) {
+      w();
+    }
+    delete this.#waiters[key];
+  }
+  setFailed(key: string) {
+    delete this.#retrieving[key];
+    for (const w of this.#waiters[key]) {
+      w();
+    }
+    delete this.#waiters[key];
+  }
+
   async wait(key: string) {
     return new Promise<void>((resolve, reject) => {
       if (!(key in this.#waiters)) {
