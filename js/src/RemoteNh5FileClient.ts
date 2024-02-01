@@ -290,14 +290,18 @@ class FetchCache {
     this.#retrieving[key] = true;
   }
   setAborted(key: string) {
-    delete this.#retrieving[key];
+    if (key in this.#retrieving) {
+      delete this.#retrieving[key];
+    }
     for (const w of this.#waiters[key]) {
       w();
     }
     delete this.#waiters[key];
   }
   setFailed(key: string) {
-    delete this.#retrieving[key];
+    if (key in this.#retrieving) {
+      delete this.#retrieving[key];
+    }
     for (const w of this.#waiters[key]) {
       w();
     }
