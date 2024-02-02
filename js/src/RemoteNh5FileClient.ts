@@ -92,6 +92,10 @@ export class RemoteNh5FileClient {
     this.#fetchCache = new FetchCache();
   }
   async getGroup(path: string): Promise<RemoteNh5Group | undefined> {
+    console.warn('client.getGroup(path) is deprecated. Use the synchronous client.group(path) instead.')
+    return this.group(path);
+  }
+  group(path: string): RemoteNh5Group | undefined {
     const g = this.header.groups.find((g) => g.path === path);
     if (!g) return undefined;
     const subgroups = this.header.groups
@@ -118,6 +122,9 @@ export class RemoteNh5FileClient {
       datasets,
       attrs: g.attrs,
     };
+  }
+  get rootGroup(): RemoteNh5Group | undefined {
+    return this.group('/');
   }
   async getDataset(path: string): Promise<RemoteNh5Dataset | undefined> {
     const d = this.header.datasets.find((d) => d.path === path);
